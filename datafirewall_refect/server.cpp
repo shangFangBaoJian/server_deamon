@@ -1,66 +1,71 @@
 #include "server.h"
-
+#include "business.h"
 using namespace std;
 
-server::server(QObject *parent) : QObject(parent)
-{
+QT_USE_NAMESPACE
 
+server::server(quint16 port ,bool debug, QObject *parent) : QObject(parent),
+  m_pWebSocketServer(new QWebSocketServer(QStringLiteral("Server"),
+                                          QWebSocketServer::NonSecureMode,this)),
+  m_debug(1)
+{
+  Q_UNUSED(debug);
+  if(m_pWebSocketServer->listen(QHostAddress::Any,port)){
+      qDebug() << "bing port :" << port;
+    connect(m_pWebSocketServer,&QWebSocketServer::newConnection,this,&server::onNewConnection);
+    connect(m_pWebSocketServer,&QWebSocketServer::closed,this,&server::closed);
+
+  }
 }
 
-bool server::get(QUrl url)
+server::~server()
 {
-    QNetworkRequest request;
-
-    request.setUrl(url);
-
-    QNetworkReply *reply = m_pManager->get(request);
-
-    connect(reply,SIGNAL(finished()),this,SLOT(finished()));
-
-    connect(reply,SIGNAL(downloadProgress(qint64,qint64)),
-
-            this,SLOT(downloadProgress(qint64,qint64)));
-
-    return true;
+  m_pWebSocketServer->close();
+  qDeleteAll(m_client.begin(),m_client.end());
 }
 
-bool server::post(QUrl url, QByteArray &bytes)
+void server::onNewConnection()
 {
-    m_pManager = new QNetworkAccessManager();
-    QNetworkRequest request;
-
-    request.setUrl(url);
-
-    QNetworkReply *reply = m_pManager->post(request,bytes);
-
-    connect(reply,SIGNAL(downloadProgress(qint64,qint64)),
-
-            this,SLOT(downloadProgress(qint64,qint64)));
-
-    return true;
+  QWebSocket *pSocket = m_pWebSocketServer->nextPendingConnection();
+  connect(pSocket,&QWebSocket::textMessageReceived,this,&server::processTextMessage);
+  connect(pSocket,&QWebSocket::binaryMessageReceived,this,&server::processBinaryMessage);
+  connect(pSocket,&QWebSocket::disconnected,this,&server::socketDisconnected);
+    qDebug() << "has a new connect";
+  m_client << pSocket;
 }
 
-void server::replyFinish(QNetworkReply *reply)
+void server::processTextMessage(QString message)
 {
-
-
-    qDebug()<<"对返回信息的JSON包进行解析";
-    QString strJsonText = reply->readAll();//这个返回的JSON包所携带的所有信息
-    qDebug()<<"所有返回信息"<<strJsonText;
+  QString data;
+  QWebSocket *pClient = qobject_cast<QWebSocket *>(sender());
+  if (m_debug){
+    qDebug() << "Message received:" << message;
+    data = business::recv(message);
+  }
+  if (pClient) {
+      qDebug() << "Message send:" << data;
+      pClient->sendTextMessage(data);
+  }
 }
 
-void server::downloadProgress(qint64 bytesSent, qint64 bytesTotal)
+void server::processBinaryMessage(QByteArray message)
 {
-    cout<< "\ndownloadProgress done:\n";
-
-    cout << "bytesSent: " << bytesSent
-
-         << "  " << "bytesTocal: " << bytesTotal;
+  QWebSocket *pClient = qobject_cast<QWebSocket *>(sender());
+  if (m_debug)
+    qDebug() << "Binary Message received:" << message;
+  if (pClient) {
+    pClient->sendBinaryMessage(message);
+  }
 }
 
-void server::finished()
+void server::socketDisconnected()
 {
-    QNetworkReply* reply = (QNetworkReply*)sender();
-
-    reply->deleteLater();
+  QWebSocket *pClient = qobject_cast<QWebSocket *>(sender());
+  if (m_debug)
+    qDebug() << "socketDisconnected:" << pClient;
+  if (pClient) {
+    m_client.removeAll(pClient);
+    pClient->deleteLater();
+  }
 }
+

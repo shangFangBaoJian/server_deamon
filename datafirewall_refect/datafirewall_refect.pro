@@ -1,4 +1,4 @@
-QT += core network
+QT += core  websockets network
 QT -= gui
 
 CONFIG += c++11
@@ -10,7 +10,19 @@ CONFIG -= app_bundle
 TEMPLATE = app
 
 SOURCES += main.cpp \
-    server.cpp
+    business.cpp \
+    datahandler.cpp \
+    hmhttp.cpp \
+    hmlog.cpp \
+    hmutils.cpp \
+    server.cpp \
+    tcpserver.cpp
 
 HEADERS += \
-    server.h
+    business.h \
+    datahandler.h \
+    hmhttp.h \
+    hmlog.h \
+    hmutils.h \
+    server.h \
+    tcpserver.h

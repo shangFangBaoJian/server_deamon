@@ -2,9 +2,13 @@
 #define SERVER_H
 
 #include <QObject>
+#include <QList>
+#include <QByteArray>
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkReply>
 #include <QtNetwork/QNetworkRequest>
+#include <QtWebSockets/QWebSocket>
+#include <QtWebSockets/QWebSocketServer>
 #include <iostream>
 
 
@@ -12,23 +16,22 @@ class server : public QObject
 {
     Q_OBJECT
 public:
-    explicit server(QObject *parent = 0);
-
-    bool get(QUrl url);
-
-    bool post(QUrl url,QByteArray& bytes);
+    explicit server(quint16 port ,bool debug = false, QObject *parent = Q_NULLPTR);
+    ~server();
 
 signals:
+    void closed();
 
 public slots:
-    void replyFinish(QNetworkReply *reply);
-    void downloadProgress(qint64 bytesSent, qint64 bytesTotal);
-    void finished();
+    void onNewConnection();
+    void processTextMessage(QString message);
+    void processBinaryMessage(QByteArray message);
+    void socketDisconnected();
 
 private:
-    QNetworkAccessManager *manager;
-    QNetworkAccessManager *m_pManager;
-
+    QWebSocketServer *m_pWebSocketServer;
+    QList<QWebSocket *> m_client;
+    bool m_debug;
 
 };
 
